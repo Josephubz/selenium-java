@@ -3,25 +3,57 @@ package tests;
 
 import core.*;
 import org.openqa.selenium.WebDriver;
+import org.testng.ITestResult;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 
+import java.nio.file.Path;
 import java.time.Duration;
 
 public abstract class BaseTest {
 
     protected BaseTest() {}
 
-    @BeforeMethod
+    private static final ScreenshotManager SCREENSHOT_MANAGER =
+            new ScreenshotManager(Path.of(
+                    ConfigReader.getString("screenshotDirectory", "target/screenshots")
+            ));
+
+    @BeforeMethod(alwaysRun = true)
     public void setUp() {
         WebDriver driver = DriverFactory.createDriver();
         DriverManager.setDriver(driver);
         getDriver().get(ConfigReader.getString("url", ""));
     }
 
-    @AfterMethod
-    public void tearDown() {
+    @AfterMethod(alwaysRun = true)
+    public void tearDown(ITestResult result) {
+
+        if (result.getStatus() == ITestResult.FAILURE) {
+            captureFailureScreenshot(result);
+        }
+
         DriverManager.quitDriver();
+    }
+
+    private void captureFailureScreenshot(ITestResult result) {
+
+        String testClass = result.getTestClass()
+                .getRealClass()
+                .getSimpleName();
+
+        String testMethod = result.getMethod()
+                .getMethodName();
+
+        try {
+            SCREENSHOT_MANAGER.captureViewport(
+                    getDriver(),
+                    testClass,
+                    testMethod
+            );
+        } catch (Exception e) {
+            throw new IllegalStateException("Screenshot capture failed", e);
+        }
     }
 
     protected static WebDriver getDriver() {
